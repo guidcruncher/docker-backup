@@ -1,0 +1,90 @@
+#!/bin/bash
+
+function __parsearguments() {
+
+	usage() {
+		echo "Usage: $0 [-c <filename>] [-s] [-v]" 1>&2
+		exit 1
+	}
+
+	ARG_CONFIGFILE=""
+	ARG_SHOWCONFIG=""
+	ARG_VERBOSE=""
+	OPTIONS=":c:sv"
+
+	while getopts "$OPTIONS" OPT; do
+		case "$OPT" in
+		c | config)
+			ARG_CONFIGFILE="$OPTARG"
+			;;
+		s | showconfig)
+			ARG_SHOWCONFIG="true"
+			;;
+		v | verbose)
+			ARG_VERBOSE="true"
+			;;
+		*)
+			usage
+			;;
+		esac
+	done
+
+}
+
+function __initialise() {
+	local scriptDir
+	local baseDir
+	local libDir
+	local cfgFilename
+
+	scriptDir=$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo $0)
+	scriptDir=$(dirname "$scriptDir")
+	baseDir=$(readlink --canonicalize "$scriptDir""/../")
+	libDir="$baseDir""/lib/docker-backup"
+	cfgFilename="$baseDir/etc/docker-backup.conf"
+
+	if [ ! -z "$XDG_CONFIG_HOME" ]; then
+		cfgFilename="$XDG_CONFIG_HOME/docker-backup.conf"
+	fi
+
+	if [ ! -z "$XDG_RUNTIME_DIR" ]; then
+		libDir="$XDG_RUNTIME_DIR"
+	fi
+
+	if [ ! -f "$cfgFilename" ]; then
+		cfgFilename="/etc/docker-backup.conf"
+	fi
+
+	__parsearguments $@
+
+	if [ ! -z "$ARG_CONFIGFILE" ]; then
+		cfgFilename="$ARG_CONFIGFILE"
+	fi
+
+	if [ -d "$libDir" ]; then
+		for file in "$libDir"/* n*; do
+			if [ -f "$file" ]; then
+				. "$file"
+			fi
+		done
+	fi
+
+	if [ -f "$cfgFilename" ]; then
+		eval $(cat "$cfgFilename" | "$baseDir"/bin/yq -o=shell | sed -e 's/^/config_/' | sed -e 's/\(.*\)=\(.*\)/\U\1\E=\2/' | sed -e 's/\(.*\)=\(.*\)/\1=${\1:=\2}/')
+
+		if [ ! -z "$ARG_SHOWCONFIG" ]; then
+			echo "Current Defined configuration"
+			echo "Filename: $cfgFilename"
+			echo ""
+			for var in $(cat "$cfgFilename" | yq -o=shell | sed -e 's/^/config_/' | sed -e 's/\(.*\)=\(.*\)/\U\1\E/'); do
+				echo "  $var=${!var}"
+			done
+			echo ""
+			echo "Note: Any of these values can and could have been overridden by setting as environment variables."
+			echo ""
+			exit 0
+		fi
+	fi
+}
+
+__initialise $@

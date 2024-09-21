@@ -1,0 +1,170 @@
+#!/bin/bash
+
+function __slack_webhook() {
+	local title
+	local message
+	local type
+	title="$1"
+	message="$2"
+	silent="$4"
+	type="$3"
+
+	if [[ "$CONFIG_NOTIFICATIONS_SLACK_WEBHOOK_ENABLE" = "true" ]]; then
+		if [ -z "$silent" ]; then
+			log "trace" "Notifying via Slack Webhook"
+		fi
+
+		curl -S -s -o /dev/null -X POST \
+			-H 'Content-type: application/json' \
+			--data "{\"text\":\"$title\n$message\"}" \
+			"$CONFIG_NOTIFICATIONS_SLACK_WEBHOOK_URL"
+	fi
+}
+
+function __pushover_notify() {
+	local title
+	local message
+	local priority
+	local type
+	title="$1"
+	message="$2"
+	priority="$CONFIG_NOTIFICATIONS_PUSHOVER_PRIORITY"
+	silent="$4"
+	type="$3"
+
+	if [[ "$CONFIG_NOTIFICATIONS_PUSHOVER_ENABLE" = "true" ]]; then
+		if [ -z "$silent" ]; then
+			log "trace" "Notifying via Pushover"
+		fi
+
+		curl -S -s -o /dev/null \
+			--form-string "token=$CONFIG_NOTIFICATIONS_PUSHOVER_APP_TOKEN" \
+			--form-string "user=$CONFIG_NOTIFICATIONS_PUSHOVER_USER_KEY" \
+			--form-string "message=$message" \
+			--form-string "title=$title" \
+			--form-string "priority=$priority" \
+			https://api.pushover.net/1/messages.json
+	fi
+}
+
+function __apprise_notify() {
+	local title
+	local message
+	local silent
+	local type
+	title="$1"
+	message="$2"
+	silent="$4"
+	type="$3"
+
+	if [[ "$type" = "" ]]; then
+		type="info"
+	fi
+
+	if [[ "$CONFIG_NOTIFICATIONS_APPRISE_ENABLE" = "true" ]]; then
+
+		if [ -z "$silent" ]; then
+			log "trace" "Notifying via Apprise"
+		fi
+
+		curl -S -s -o /dev/null -X POST \
+			-d "{\"urls\": \"$CONFIG_NOTIFICATIONS_APPRISE_URLS\",\"body\":\"$message\",\"title\":\"$title\", \"type\": \"$type\"}" \
+			-H "Content-Type: application/json" \
+			"$CONFIG_NOTIFICATIONS_APPRISE_SERVER_URL""/notify"
+	fi
+}
+
+function __mattermost_notify() {
+	local title
+	local message
+	local silent
+	local type
+	title="$1"
+	message="$2"
+	silent="$4"
+	type="$3"
+
+	if [[ "$CONFIG_NOTIFICATIONS_MATTERMOST_ENABLE" = "true" ]]; then
+		if [ -z "$silent" ]; then
+			log "trace" "Notifying via Mattermost"
+		fi
+		curl -S -s -o /dev/null -i -X POST -H 'Content-Type: application/json' \
+			-d "{\"text\": \"$title\n$message\"}" \
+			"https://$CONFIG_NOTIFICATIONS_MATTERMOST_HOST/hooks/$CONFIG_NOTIFICATIONS_MATTERMOST_KEY"
+	fi
+}
+
+function __discord_notify() {
+	local title
+	local message
+	local silent
+	local type
+	title="$1"
+	message="$2"
+	silent="$4"
+	type="$3"
+
+	if [[ "$CONFIG_NOTIFICATIONS_DISCORD_ENABLE" = "true" ]]; then
+		if [ -z "$silent" ]; then
+			log "trace" "Notifying via Discord"
+		fi
+		#curl -S -s -o /dev/null
+		curl -H 'Content-Type: application/json' \
+			-d "{\"username\": \"docker-backup\", \"content\": \"$title\n$message\"}" \
+			"https://discord.com/api/webhooks/$CONFIG_NOTIFICATIONS_DISCORD_WEBHOOK_ID/$CONFIG_NOTIFICATIONS_DISCORD_TOKEN"
+	fi
+}
+
+function __gotify_notify() {
+	local title
+	local message
+	local priority
+	local type
+	title="$1"
+	message="$2"
+	priority="$CONFIG_NOTIFICATIONS_GOTIFY_PRIORITY"
+	silent="$4"
+	type="$3"
+
+	if [[ "$CONFIG_NOTIFICATIONS_GOTIFY_ENABLE" = "true" ]]; then
+		if [ -z "$silent" ]; then
+			log "trace" "Notifying via Gotify"
+		fi
+
+		curl -S -s -o /dev/null -X POST \
+			-F "title=$title" \
+			-F "message=$message" \
+			-F "priority=$priority" \
+			"$CONFIG_NOTIFICATIONS_GOTIFY_SERVER_URL""/message?token=$CONFIG_NOTIFICATIONS_GOTIFY_TOKEN"
+	fi
+}
+
+function notify() {
+	local title
+	local message
+	local silent
+	local type
+	title="$1"
+	message="$2"
+	silent="$4"
+	type="$3"
+
+	if [ "$PARAM_SIMULATE" = "true" ]; then
+		title="$1 (Simulation)"
+	fi
+
+	if [ -z "$type" ]; then
+		type="info"
+	fi
+
+	if [ -z "$silent" ]; then
+		log "trace" "Notify: $title - $message"
+	fi
+
+	__gotify_notify "$title" "$message" "$type" "$silent"
+	__discord_notify "$title" "$message" "$type" "$silent"
+	__apprise_notify "$title" "$message" "$type" "$silent"
+	__mattermost_notify "$title" "$message" "$type" "$silent"
+	__pushover_notify "$title" "$message" "$type" "$silent"
+	__slack_webhook "$title" "$message" "$type" "$silent"
+}

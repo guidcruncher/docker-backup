@@ -1,0 +1,2 @@
+https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_arm64 yq_aarch64
+https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 yq_x86_64

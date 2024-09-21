@@ -1,0 +1,45 @@
+#!/bin/bash
+
+function log() {
+        declare -A loglevels
+        declare -A logcolours
+        declare -A notifloglevels
+        local level
+        local colour
+        local levelstr
+        local message
+        local configuredlevel
+        local padding
+        local configloglevel
+        local configurednotiflevel
+        local notifloglevel
+        notifloglevels=([fatal]="failure" [error]="failure" [warn]="warning" [info]="info" [debug]="info" [trace]="success")
+        loglevels=([fatal]=1 [error]=2 [warn]=3 [info]=4 [debug]=5 [trace]=6)
+        logcolours=([fatal]="\e[1;31m" [error]="\e[31m" [warn]="\e[1;37m" [info]="\e[1;33m" [debug]="\e[0m" [trace]="\e[0m")
+        configloglevel="$CONFIG_LOGGING_LOGLEVEL"
+
+        if [[ "$configloglevel" = "" ]]; then
+                configloglevel="trace"
+        fi
+ 
+        configuredlevel=${loglevels["$configloglevel"]}
+        level=${loglevels["$1"]}
+        colour=${logcolours["$1"]}
+        notifloglevel=${notifloglevels["$1"]}
+        levelstr=$(echo "$1" | awk '{ print toupper($0) }')
+        message="$2"
+        padding="      "
+
+        if [[ ("$level" -lt "$configuredlevel") || ("$level" = "$configuredlevel") ]]; then
+                printf "%b%s %s : %s \e[0m\n" "$colour" "$(date '+%Y-%m-%d %H:%M:%S')" "${padding:${#levelstr}}$levelstr" "$message"
+        fi
+
+        if [[ "$NOTIF_LOGLEVEL" != "" ]]; then
+                configurednotiflevel=${loglevels["$CONFIG_NOTIFICATIONS_LOGLEVEL"]}
+
+                if [[ ("$level" -lt "$configurednotiflevel") || ("$level" = "$configurednotiflevel") ]]; then
+                        notify "docker-backup" "$levelstr\n$message" "$notifloglevel" "true"
+                fi
+
+        fi
+}
