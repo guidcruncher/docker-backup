@@ -1,0 +1,66 @@
+s#!/bin/bash
+
+function __getMethod() {
+	if [[ "$CONFIG_COMPRESSION_ENABLE" = "true" ]]; then
+		echo "$CONFIG_COMPRESSION_METHOD"
+	else
+		echo ""
+	fi
+}
+
+function __getExtension() {
+	case "$(__getMethod)" in
+	bzip2)
+		echo ".bz2"
+		;;
+	xz)
+		echo ".xz"
+		;;
+	gzip)
+		echo ".gz"
+		;;
+	*)
+		echo ""
+		;;
+	esac
+}
+
+function archive() {
+	if test -n "$2"; then
+		source="$1"
+		target=$(printf "%s%s" "$2" __getExtension)
+		case "$(__getMethod)" in
+		bzip2)
+			tar -cf - -C "$source" . | bzip2 -z "$CONFIG_COMPRESSION_BZ2_OPT" - >"$target"
+			;;
+		xz)
+			tar -cf - -C "$source" . | xz -z "$CONFIG_COMPRESSION_XZ_OPT" - >"$target"
+			;;
+		gzip)
+			tar -cf - -C "$source" . | gzip "$CONFIG_COMPRESSION_GZIP_OPT" - >"$target"
+			;;
+		*)
+			tar -cf "$target" -C "$source" .
+			;;
+		esac
+	elif test ! -t 0; then
+		if "$CONFIG_COMPRESSION_ENABLE" = "true"; then
+			case "$CONFIG_COMPRESSION_METHOD" in
+			bzip2)
+				$(/dev/stdin) >bzip2 -z "$CONFIG_COMPRESSION_BZ2_OPT" - >"$target"".bz2"
+				;;
+			xz)
+				$(/dev/stdin) >xz -z "$CONFIG_COMPRESSION_XZ_OPT" - >"$target"".xz"
+				;;
+			gzip)
+				$(/dev/stdin) >gzip "$CONFIG_COMPRESSION_GZIP_OPT" - >"$target"".gz"
+				;;
+			*)
+				$(/dev/stdin) >"$target"
+				;;
+			esac
+		else
+			$(/dev/stdin) >"$target"
+		fi
+	fi
+}
